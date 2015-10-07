@@ -15,6 +15,7 @@ import typetraits
 import topk
 import threadpool
 import locks
+import math
 #import optionals
 
 
@@ -161,6 +162,8 @@ let allSubspaces    = pairExtractor("--allSubspaces", 1)
 let startDimension  = pairExtractor("--startDimension", 0)
 let maxSubSpaceDim  = pairExtractor("--maxSubspaceDim", 0)
 
+let randomSeed = pairExtractor("--randomSeed", -1)
+
 if not silent:
   echo ifmt"Running with parameters:"
   echo ifmt"  csvIn         = $fileI"
@@ -169,6 +172,7 @@ if not silent:
   echo ifmt"  numRuns       = $numRuns"
   echo ifmt"  numCandidates = $numCandidates"
   echo ifmt"  alpha         = $alpha"
+  echo ifmt"  randomSeed    = $randomSeed"
 
 
 let params = initParameters(
@@ -178,6 +182,11 @@ let params = initParameters(
   maxOutputSpaces = maxOutputSpaces
 )
 
+#initialize random numbers
+if randomSeed > 0:
+  randomize(randomSeed)
+else:
+  randomize()
 
 let ds = loadDataset(fileI, hasHeader, silent)
 if not silent:
@@ -205,6 +214,8 @@ proc expandSubspace (currentSeq: seq[int], maxSubspaceDim: int, maxFullSpaceDim:
     resultString = ifmt("\n$contrast $subspacestring") & resultString
 
   return resultString
+
+
 
 if onlySubspace.dimensionality == 0:
 
