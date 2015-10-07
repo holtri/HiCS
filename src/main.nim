@@ -2,6 +2,7 @@ import os
 import parseutils
 import strutils
 import sequtils
+import sets
 import utils
 import dataset
 import preprocessing
@@ -12,6 +13,8 @@ import subspace
 import stattest as module_stattest
 import typetraits
 import topk
+import threadpool
+import locks
 #import optionals
 
 
@@ -42,7 +45,7 @@ Options:
   --onlySubspace <INT,INT,...>]   Using this command will not perform a subspace search.
                                   Instead, HiCS will only compute the contrast of the specified
                                   subspace. Note: The list of INTs must not contain whitespace and
-                                  indexing starts at zero. For example: 0,3,12,51 
+                                  indexing starts at zero. For example: 0,3,12,51
   -h, --help                      Print this help message.
   -v, --version                   Print version information.
   -s, --silent                    Disables debug output on stdout.
@@ -154,6 +157,9 @@ let fileI           = pairExtractor[string]("--csvIn")
 let fileO           = pairExtractor("--csvOut", "out.csv")
 
 let onlySubspace    = pairExtractor("--onlySubspace", [].toSubspace)
+let allSubspaces    = pairExtractor("--allSubspaces", 1)
+let startDimension  = pairExtractor("--startDimension", 0)
+let maxSubSpaceDim  = pairExtractor("--maxSubspaceDim", 0)
 
 if not silent:
   echo ifmt"Running with parameters:"
@@ -164,6 +170,7 @@ if not silent:
   echo ifmt"  numCandidates = $numCandidates"
   echo ifmt"  alpha         = $alpha"
 
+
 let params = initParameters(
   numIterations = numRuns,
   alpha = alpha,
@@ -171,28 +178,65 @@ let params = initParameters(
   maxOutputSpaces = maxOutputSpaces
 )
 
+
 let ds = loadDataset(fileI, hasHeader, silent)
 if not silent:
   echo ifmt"Data dimensions: ${ds.nrows} x ${$ds.ncols}"
 
 
+proc storeBruteForceResults(filename: string, output: string, index: int) =
+  var outFile = ifmt("$filename_$index.csv")
+  echo outFile
+  var o = open(outFile, fmWrite)
+  o.writeln(output)
+  o.close
+
+proc expandSubspace (currentSeq: seq[int], maxSubspaceDim: int, maxFullSpaceDim: int, preproData: PreproData, statTest: KSTest, ds: Dataset): string =
+  var resultString: string = ""
+
+  if(len(currentSeq) < maxSubspaceDim):
+    for i in currentSeq[high(currentSeq)]+1..maxFullSpaceDim:
+      let tmp = expandSubspace(currentSeq & (i), maxSubspaceDim, maxFullSpaceDim, preproData, statTest, ds)
+      resultString = resultString & tmp
+
+  if(len(currentSeq) > 1):
+    let contrast = computeContrast(currentSeq.toSubspace, ds, preproData, params, statTest)
+    let subspaceString = foldr(currentSeq.mapIt(string,";" & $it & " "), a & b)
+    resultString = ifmt("\n$contrast $subspacestring") & resultString
+
+  return resultString
+
 if onlySubspace.dimensionality == 0:
-  # regular mode:
 
-  let results = hicsFramework(ds, params, verbose = not silent)
+  if allSubspaces > 1:
+    let preproData = ds.generatePreprocessingData()
+    let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
+    let maxFullSpaceDim = ds.nCols - 1
 
-  storeResults(fileO, results)
+    debug maxFullSpaceDim, maxSubspaceDim, startDimension
+    let initialSeq = @[startDimension]
+    var res = expandSubspace(initialSeq, maxSubspaceDim, maxFullSpaceDim, preproData, statTest, ds)
+    storeBruteForceResults(fileO,res, initialSeq[0])
+    sync()
+
+  else:
+    # regular mode:
+    let results = hicsFramework(ds, params, verbose = not silent)
+
+    storeResults(fileO, results)
 
 else:
-  
+
   let preproData = ds.generatePreprocessingData()
   let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
-  let contrast = computeContrast([0,1].toSubspace, ds, preproData, params, statTest)
-  
+  let contrast = computeContrast(onlySubspace, ds, preproData, params, statTest)
+
   #echo ifmt"Runtime with preprocessing: ${(t3-t1).toDouble / 1000}%.3f"
   #echo ifmt"Runtime contrast calculation only: ${(t3-t2).toDouble / 1000}%.3f"
   echo ifmt"Contrast of subspace $onlySubspace"
   echo contrast
+
+
 
 
 

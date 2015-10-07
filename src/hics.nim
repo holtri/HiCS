@@ -18,7 +18,7 @@ type
     alpha*: float
     numCandidates*: int
     maxOutputSpaces*: int
-  
+
 
 proc initParameters*(
     numIterations = 100,
@@ -52,10 +52,14 @@ proc computeContrast*[T](subspace: Subspace, ds: Dataset, preproData: PreproData
   var iselCur = newIndexSelection(N)
 
   var totalDev = 0.0
+  var tmpChecksum  = 0
+
+  var hashed = hash(subspace)
+  randomize(hashed)
 
   for iter in 0 .. <params.numIterations:
     let cmpAttr = subspace.randomDim
-
+    tmpChecksum += cmpAttr
     # reset all object-indices as "selected" (selection is destructive)
     iselAll.reset(true)
 
@@ -70,13 +74,14 @@ proc computeContrast*[T](subspace: Subspace, ds: Dataset, preproData: PreproData
           if not used:
             let indObject = preproData.indexMaps[j][indRank]
             iselAll[indObject] = false
-    
+
     let deviation: float = statTest.computeDeviation(ds, cmpAttr, iselAll)
+    #debug deviation
     totalDev += deviation
 
     let numRemainingObjects = iselAll.getM
     #debug iter, cmpAttr, deviation, numRemainingObjects
-
+  debug subspace, tmpChecksum
   return totalDev / params.numIterations.toFloat
 
 
