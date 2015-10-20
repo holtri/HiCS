@@ -76,6 +76,12 @@ proc parse*[T](s: string): tuple[okay: bool, value: T] =
       return (true, x)
     else:
       return (false, 0)
+  elif T is float:
+    var x: float
+    if parseFloat(s, x) > 0:
+      return (true, x)
+    else:
+      return (false, 0.0)
   elif T is string:
     return (true, s)
   elif T is Subspace:
@@ -152,7 +158,7 @@ let hasHeader = hasArg("--hasHeader")
 let numRuns         = pairExtractor("--numRuns", 100)
 let numCandidates   = pairExtractor("--numCandidates", 500)
 let maxOutputSpaces = pairExtractor("--numCandidates", 1000)
-let alpha           = pairExtractor("--alpha", 0.1)
+let alpha           = pairExtractor[float]("--alpha", 0.1)
 
 let fileI           = pairExtractor[string]("--csvIn")
 let fileO           = pairExtractor("--csvOut", "out.csv")
@@ -214,8 +220,6 @@ proc expandSubspace (currentSeq: seq[int], maxSubspaceDim: int, maxFullSpaceDim:
     resultString = ifmt("\n$contrast $subspacestring") & resultString
 
   return resultString
-
-
 
 if onlySubspace.dimensionality == 0:
 

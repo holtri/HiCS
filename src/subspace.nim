@@ -76,12 +76,15 @@ proc generate2DSubspaces*(D: int): SubspaceSet =
     let subspace = [i,j].toSubspace
     result.incl(subspace)
 
-
-
+proc generate2DSubspaces*(D:int, startDim:int):SubspaceSet =
+  result = initSet[Subspace]()
+  for i in 0..D-1:
+    if(i!=startDim):
+      result.incl([startDim, i].toSubspace)
 
 proc aprioriMerge*(subspaces: SubspaceSet): SubspaceSet =
   var prefixSuffixMap = initTable[Subspace, seq[int]]()
-
+  debug subspaces
   # generate a map of prefixes and suffixes
   for subspace in subspaces:
     let subspaceSeq = subspace.asSeq
@@ -104,9 +107,9 @@ proc aprioriMerge*(subspaces: SubspaceSet): SubspaceSet =
   # This is accomplished here by using a special for loop, which ensures i < j.
   var candidates: seq[Subspace] = @[]
   for prefix, suffices in prefixSuffixMap:
-    #debug prefix, suffices
+    debug prefix, suffices
     ijForLoop(suffices.len):
-      #debug suffices[i], suffices[j]
+      debug suffices[i], suffices[j]
       var space: Subspace = prefix
       space.incl(suffices[i])
       space.incl(suffices[j])
@@ -120,15 +123,14 @@ proc aprioriMerge*(subspaces: SubspaceSet): SubspaceSet =
     for lowDimProjection in candidate.lowDimProjections:
       #debug lowDimProjection, subspaces.contains(lowDimProjection)
       if not subspaces.contains(lowDimProjection):
-        allTrue = false
+        #allTrue = false
         break
     if allTrue:
       validCandidates.add(candidate)
   #debug validCandidates
-  
+
+
   return validCandidates.toSet
-
-
 
 UnitTests("aprioriMerge"):
 
@@ -170,7 +172,7 @@ UnitTests("aprioriMerge"):
     let s2 = [0, 2, 3, 4].toSubspace
     let s3 = [0, 1, 2, 3].toSubspace
     let s4 = [1, 2, 3, 4].toSubspace
-    let s5 = [0, 1, 2, 4].toSubspace 
+    let s5 = [0, 1, 2, 4].toSubspace
     let res = aprioriMerge([s1,s2,s3,s4,s5].toSet)
     check res.len == 1
     check contains(res, ([0,1,2,3,4].toSubspace))
@@ -184,7 +186,7 @@ UnitTests("aprioriMerge"):
       #debug subspaces
       let merged = aprioriMerge(subspaces)
       check merged.len == 1
-    
+
   test "created from lower dims (multiple steps)":
     let N = 5
     let base = (1..N).toSubspace

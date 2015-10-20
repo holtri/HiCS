@@ -9,6 +9,8 @@ import math
 import future
 import sets
 import topk
+import tables
+import sequtils
 
 type
   IndexMap = seq[int] # not nil
@@ -33,8 +35,6 @@ proc initParameters*(
     maxOutputSpaces: maxOutputSpaces
   )
 
-
-
 proc computeContrast*[T](subspace: Subspace, ds: Dataset, preproData: PreproData, params: Parameters, statTest: T): float =
   # various assertions
   assert(ds.isValidSubspace(subspace))
@@ -46,16 +46,23 @@ proc computeContrast*[T](subspace: Subspace, ds: Dataset, preproData: PreproData
   let N = ds.nrows
   let M = (pow(params.alpha, 1 / (D-1)) * N.toFloat).toInt
 
-  #debug D, N, M
+  debug D, N, M
 
   var iselAll = newIndexSelection(N)
   var iselCur = newIndexSelection(N)
 
   var totalDev = 0.0
   var tmpChecksum  = 0
+  var tmpCounts = newSeq[int](N)
 
   var hashed = hash(subspace)
   randomize(hashed)
+
+  var deviations = initTable[int,float]()
+  var deviationCount = initCountTable[int]()
+  let limit:int = -1#((1-params.alpha)*params.alpha * N.toFloat).toInt
+
+  #debug limit
 
   for iter in 0 .. <params.numIterations:
     let cmpAttr = subspace.randomDim
@@ -74,14 +81,28 @@ proc computeContrast*[T](subspace: Subspace, ds: Dataset, preproData: PreproData
           if not used:
             let indObject = preproData.indexMaps[j][indRank]
             iselAll[indObject] = false
+    let tmpZip = zip(iselAll.mapIt(int, if it: 1 else: 0),tmpCounts)
+    tmpCounts = mapIt(tmpZip, int, it[0] + it[1])
+
+    let tmpLength:int = len(filterIt(iselAll, it))
 
     let deviation: float = statTest.computeDeviation(ds, cmpAttr, iselAll)
-    #debug deviation
+
+    if(tmpLength > limit):
+      deviationCount.inc(cmpAttr)
+      deviations[cmpAttr] = deviations[cmpAttr] + deviation
+    #else:
+      #debug tmpLength, cmpAttr
     totalDev += deviation
 
     let numRemainingObjects = iselAll.getM
     #debug iter, cmpAttr, deviation, numRemainingObjects
-  debug subspace, tmpChecksum
+  debug subspace, tmpChecksum #, tmpCounts
+  var devSeq = toSeq(deviations.keys)
+  for dev in devSeq:
+    deviations[dev] = deviations[dev] / deviationCount[dev]
+  debug totalDev, deviations, deviationCount
+
   return totalDev / params.numIterations.toFloat
 
 
@@ -98,8 +119,8 @@ proc hicsFramework*(ds: Dataset, params: Parameters, verbose = false): StoreTopK
 
   # variables representing the current state
   var d = 2
-  var spaces = generate2DSubspaces(D)
-
+  #var spaces = generate2DSubspaces(D)
+  var spaces = generate2DSubspaces(D,0)
   while spaces.len > 0:
     if verbose: echo ifmt" * processing subspaces of dim $d [number of spaces: ${spaces.len}]"
 
@@ -113,6 +134,8 @@ proc hicsFramework*(ds: Dataset, params: Parameters, verbose = false): StoreTopK
       if verbose: debug s, contrast
       spacesForAprioriMerge.add((contrast, s))
       outputSpaces.add((contrast, s))
+
+    #remove top spaces from
 
     # for the apriori merge we have to convert spacesForAprioriMerge
     # from StoreTopK (i.e. a heap) into a SubspaceSet (a set)

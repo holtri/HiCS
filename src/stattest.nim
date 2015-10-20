@@ -59,9 +59,9 @@ proc determineExpectedMaxDeviation(N: int, M: int): float =
     selection.selectBlock(M, offset)
     let dev = computeDeviationFromSelfSelection(selection)
     totalDev += dev
+
+  debug (totalDev / possibleOffsets.numPossible)
   return totalDev / possibleOffsets.numPossible
-
-
 
 proc initKSTest*(
     ds: Dataset,
@@ -76,28 +76,28 @@ proc initKSTest*(
   assert(M > 0, "expectedSampleSize must be larger than zero.")
   assert(M < N, "expectedSampleSize must be smaller than the total sample size.")
   # TODO: preproData.fitsTo(ds)
-  
-  let expectedMinDev = determineExpectedMinDeviation(N, M, calibrationIterations)
-  let expectedMaxDev = determineExpectedMaxDeviation(N, M)
 
+  let expectedMinDev = determineExpectedMinDeviation(N, M, calibrationIterations)
+
+  let expectedMaxDev = determineExpectedMaxDeviation(N, M)
+  debug expectedMinDev, expectedMaxDev
   if verbose:
     echo ifmt"KS expectations:    min value = $expectedMinDev    max value = $expectedMaxDev"
-  
+
   KSTest(N: N, M: M,
          preproData: preproData,
          applyCalibration: applyCalibration,
          expectedMinDev: expectedMinDev,
          expectedMaxDev: expectedMaxDev)
 
-
-
 proc computeDeviation*(ks: KSTest, ds: Dataset, cmpAttr: int, selection: IndexSelection): float =
 
   let numRemainingObjects = selection.getM
-  
+
   var cumulatedDistOrig = 0.0
   var cumulatedDistTest = 0.0
   var maxDiscrepancy = -Inf
+  var counter = 0
 
   for i in 0 ..< ks.N:
     # i  is the rank-index w.r.t. the sorted cmpAttr
@@ -108,11 +108,22 @@ proc computeDeviation*(ks: KSTest, ds: Dataset, cmpAttr: int, selection: IndexSe
 
     if selection[ii] == true:
       cumulatedDistTest += 1.0 / numRemainingObjects.float
+      counter +=1
 
     maxDiscrepancy = max(maxDiscrepancy, abs(cumulatedDistTest - cumulatedDistOrig))
 
   if not ks.applyCalibration:
     result = maxDiscrepancy
   else:
-    result = (maxDiscrepancy - ks.expectedMinDev) / (ks.expectedMaxDev - ks.expectedMinDev)
-  
+    #result = (maxDiscrepancy - ks.expectedMinDev) / (ks.expectedMaxDev - ks.expectedMinDev)
+    if(counter>0):
+      let maxDev = (ks.N - numRemainingObjects) / ks.N
+      let minDev = 1.0 /counter
+      result = (maxDiscrepancy - minDev) / (maxDev - minDev)
+      #debug result, maxDiscrepancy, cmpAttr, maxDev, minDev, counter
+    else:
+      result = 1.0
+      #debug result
+    #if(cmpAttr == 1):
+    #  debug result
+

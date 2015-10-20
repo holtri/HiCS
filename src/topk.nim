@@ -54,7 +54,7 @@ when isMainModule:
   import math
   import sequtils
   import algorithm
-  
+
   block:
     let N = 100
     var stk = newStoreTopK[float](5)
@@ -69,7 +69,7 @@ when isMainModule:
 
     type
       NotComparable = object
-    
+
     var stk = newTupleStoreTopK[int, NotComparable](5, true)
 
     for i in 1 .. 20:
@@ -77,3 +77,4 @@ when isMainModule:
       let values = toSeq(stk.sortedItems)
       echo values
 
+  

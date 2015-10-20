@@ -71,7 +71,7 @@ proc selectRandomly*(isel: var IndexSelection, M: int) =
     let u = random(1.0) # call a uniform(0,1) random number generator
 
     #debug N, M, t, m, u, (N-t)*u, M-m
-    
+
     # meaning of these terms:
     # (N - t) is the total number of remaining draws left (initially just N)
     # (M - m) is the number how many of these remaining draw must be positive (initially just M)
@@ -109,7 +109,7 @@ proc newIndexSelection*(N: int, default = false): IndexSelection =
   result = newSeq[bool](N)
   if default == true:
     result.reset(true)
-    
+
 UnitTests("selection"):
 
   test "IndexSelection.possibleOffsets":
