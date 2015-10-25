@@ -58,14 +58,21 @@ proc randomDim*(s: Subspace): int {.inline.} =
     i.inc
   assert(false, "randomDim should always return")
 
-
-
 iterator lowDimProjections*(s: Subspace): Subspace =
   for dim in s:
     var space = s
     space.excl(dim)
     yield space
 
+iterator lowDimProjections*(s: Subspace, focusDim: int): Subspace =
+  #var excludeDimensions = s
+  #excludeDimensions.excl(focusDim)
+  for dim in s:
+    if (not s.contains(focusDim)) or dim == focusDim:
+      continue
+    var space = s
+    space.excl(dim)
+    yield space
 
 proc newSubspaceSet*(): SubspaceSet =
   result = initSet[Subspace]()
@@ -82,55 +89,74 @@ proc generate2DSubspaces*(D:int, startDim:int):SubspaceSet =
     if(i!=startDim):
       result.incl([startDim, i].toSubspace)
 
-proc aprioriMerge*(subspaces: SubspaceSet): SubspaceSet =
+proc aprioriMerge*(subspaces: SubspaceSet, focusDim: int): SubspaceSet =
   var prefixSuffixMap = initTable[Subspace, seq[int]]()
-  debug subspaces
-  # generate a map of prefixes and suffixes
-  for subspace in subspaces:
-    let subspaceSeq = subspace.asSeq
-    if subspaceSeq.len == 0:
-      continue
-    let prefix = subspaceSeq[0..^2].toSubspace
-    let suffix = subspaceSeq[^1]
 
-    try:
-      prefixSuffixMap.mget(prefix).add(suffix)
-    except KeyError:
-      prefixSuffixMap[prefix] = @[suffix]
+  # generate a map of prefixes and suffixes
+
+
+
+#
+       # abc.add(i)
+       # var candidate = abc.toSubspace
+       # candidates.add(candidate)
+
+#    let prefix = subspace
+
+#    let subspaceSeq = subspace.asSeq
+#    if subspaceSeq.len == 0:
+#      continue
+#    let prefix = subspaceSeq[0..^2].toSubspace
+#    let suffix = subspaceSeq[^1]
+#    for suffix in allDim:
+#      try:
+#        prefixSuffixMap.mget(prefix).add(suffix)
+#      except KeyError:
+#        prefixSuffixMap[prefix] = @[suffix]
     #debug subspace, prefix, suffix, prefixSuffixMap[prefix]
 
   #debug prefixSuffixMap
 
-  # generate candidates
-  # sorting of suffices like in original Apriori is actually not necessary,
-  # since we only have to ensure to iterate over unique suffix pairs.
-  # This is accomplished here by using a special for loop, which ensures i < j.
-  var candidates: seq[Subspace] = @[]
-  for prefix, suffices in prefixSuffixMap:
-    debug prefix, suffices
-    ijForLoop(suffices.len):
-      debug suffices[i], suffices[j]
-      var space: Subspace = prefix
-      space.incl(suffices[i])
-      space.incl(suffices[j])
-      candidates.add(space)
+
+
+#  var candidates: seq[Subspace] = @[]
+#  for prefix, suffices in prefixSuffixMap:
+#    #debug prefix, suffices
+#    ijForLoop(suffices.len):
+#      #debug suffices[i], suffices[j]
+#      var space: Subspace = prefix
+#      space.incl(suffices[i])
+#      space.incl(suffices[j])
+#      candidates.add(space)
   #debug candidates
+  var candidates: seq[Subspace] = @[]
+
+  for subspace in subspaces:
+
+    var allDim: seq[int]= @[]
+    for i in 0..39:
+      if not subspace.contains(i):
+        var tmp = subspace.asSeq
+        tmp.add(i)
+        candidates.add(tmp.toSubspace)
 
   # check all lower-dim projections:
   var validCandidates: seq[Subspace] = @[]
   for candidate in candidates:
     var allTrue = true
-    for lowDimProjection in candidate.lowDimProjections:
-      #debug lowDimProjection, subspaces.contains(lowDimProjection)
+    for lowDimProjection in candidate.lowDimProjections(focusDim):
+      #if focusDim == 35 or focusDim == 36:
+      #  debug candidate, lowdimProjection
+      #debug candidate, lowDimProjection, subspaces.contains(lowDimProjection)
       if not subspaces.contains(lowDimProjection):
-        #allTrue = false
+        allTrue = false
         break
     if allTrue:
       validCandidates.add(candidate)
   #debug validCandidates
 
-
   return validCandidates.toSet
+  #return candidates.toSet
 
 UnitTests("aprioriMerge"):
 

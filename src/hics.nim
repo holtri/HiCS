@@ -35,79 +35,70 @@ proc initParameters*(
     maxOutputSpaces: maxOutputSpaces
   )
 
-proc computeContrast*[T](subspace: Subspace, ds: Dataset, preproData: PreproData, params: Parameters, statTest: T): float =
-  # various assertions
-  assert(ds.isValidSubspace(subspace))
-  assert(preproData.indexMaps.len == ds.ncols)
-  for m in preproData.indexMaps:
-    assert(m.len == ds.nrows)
+proc computeAverageDeviation*[T](subspace: Subspace, ds: Dataset, preproData: PreproData, params: Parameters, statTest: T, cmpAttr: int): float =
+  let D = subspace.len
+  let N = ds.nrows
+  let M = (pow(params.alpha, 1 / (D-1)) * N.toFloat).toInt
+
+  var iselAll = newIndexSelection(N)
+  var iselCur = newIndexSelection(N)
+
+  var totalDeviation: float = 0
+  var numIterations: int = (params.numIterations/subspace.len).int
+
+  for iter in 0 .. < numIterations:
+    iselAll.reset(true)
+
+    for j in subspace.asSeq:
+      if j != cmpAttr:
+        iselCur.selectRandomBlock(M)
+
+        for indRank, used in iselCur:
+          if not used:
+            let indObject = preproData.indexMaps[j][indRank]
+            iselAll[indObject] = false
+
+    let deviation: float = statTest.computeDeviation(ds, cmpAttr, iselAll)
+
+    totalDeviation += deviation
+  return totalDeviation / numIterations.toFloat
+
+proc computeAverageDeviation*[T](subspace: Subspace, ds: Dataset, preproData: PreproData, params: Parameters, statTest: T): Table[int,float] =
 
   let D = subspace.len
   let N = ds.nrows
   let M = (pow(params.alpha, 1 / (D-1)) * N.toFloat).toInt
 
-  debug D, N, M
-
   var iselAll = newIndexSelection(N)
   var iselCur = newIndexSelection(N)
 
-  var totalDev = 0.0
-  var tmpChecksum  = 0
-  var tmpCounts = newSeq[int](N)
-
-  var hashed = hash(subspace)
-  randomize(hashed)
-
   var deviations = initTable[int,float]()
-  var deviationCount = initCountTable[int]()
-  let limit:int = -1#((1-params.alpha)*params.alpha * N.toFloat).toInt
 
-  #debug limit
+  for s in subspace:
 
-  for iter in 0 .. <params.numIterations:
-    let cmpAttr = subspace.randomDim
-    tmpChecksum += cmpAttr
-    # reset all object-indices as "selected" (selection is destructive)
-    iselAll.reset(true)
+    var cmpAttr = s
+    var totalDeviation: float = 0
+    var numIterations: int = params.numIterations #(params.numIterations/subspace.len).int
+    for iter in 0 .. < numIterations:
+      iselAll.reset(true)
 
-    for j in subspace:
-      if j != cmpAttr:
-        iselCur.selectRandomBlock(M)
-        assert(iselCur.getM == M)
-        # now convert from the rank-indices in dim j
-        # to global object-indices and unselect them
-        # if they are not part of the selection block
-        for indRank, used in iselCur:
-          if not used:
-            let indObject = preproData.indexMaps[j][indRank]
-            iselAll[indObject] = false
-    let tmpZip = zip(iselAll.mapIt(int, if it: 1 else: 0),tmpCounts)
-    tmpCounts = mapIt(tmpZip, int, it[0] + it[1])
+      for j in subspace.asSeq:
+        if j != cmpAttr:
+          iselCur.selectRandomBlock(M)
 
-    let tmpLength:int = len(filterIt(iselAll, it))
+          for indRank, used in iselCur:
+            if not used:
+              let indObject = preproData.indexMaps[j][indRank]
+              iselAll[indObject] = false
 
-    let deviation: float = statTest.computeDeviation(ds, cmpAttr, iselAll)
+      let deviation: float = statTest.computeDeviation(ds, cmpAttr, iselAll)
 
-    if(tmpLength > limit):
-      deviationCount.inc(cmpAttr)
-      deviations[cmpAttr] = deviations[cmpAttr] + deviation
-    #else:
-      #debug tmpLength, cmpAttr
-    totalDev += deviation
+      totalDeviation += deviation
 
-    let numRemainingObjects = iselAll.getM
-    #debug iter, cmpAttr, deviation, numRemainingObjects
-  debug subspace, tmpChecksum #, tmpCounts
-  var devSeq = toSeq(deviations.keys)
-  for dev in devSeq:
-    deviations[dev] = deviations[dev] / deviationCount[dev]
-  debug totalDev, deviations, deviationCount
+    deviations[cmpAttr] = totalDeviation / numIterations.toFloat
+  return deviations
 
-  return totalDev / params.numIterations.toFloat
-
-
-
-proc hicsFramework*(ds: Dataset, params: Parameters, verbose = false): StoreTopK[(float, Subspace)] =
+proc hicsFramework*(ds: Dataset, params: Parameters, focusDim: int, verbose = false): StoreTopK[(float, Subspace)] =
 
   let N = ds.nrows
   let D = ds.ncols
@@ -117,48 +108,48 @@ proc hicsFramework*(ds: Dataset, params: Parameters, verbose = false): StoreTopK
 
   var outputSpaces = newTupleStoreTopK[float,Subspace](params.maxOutputSpaces, keepLarge=true)
 
-  # variables representing the current state
   var d = 2
-  #var spaces = generate2DSubspaces(D)
-  var spaces = generate2DSubspaces(D,0)
+  let maxDim = 7
+  var spaces = generate2DSubspaces(D)
+  #var focusDim = 2
+  #var spaces = generate2DSubspaces(D,focusDim)
+
   while spaces.len > 0:
     if verbose: echo ifmt" * processing subspaces of dim $d [number of spaces: ${spaces.len}]"
 
-    # initialize the limited store of subspaces used for apriori merging
-    var spacesForAprioriMerge = newTupleStoreTopK[float,Subspace](params.numCandidates, keepLarge=true)
-
-    # iterate over current spaces, determine their contrast,
-    # and add them to the apriori-merge-spaces and the output-spaces.
+    var spacesForAprioriMerge = newTupleStoreTopK[float,Subspace](params.numCandidates)
+    #debug spaces
     for s in spaces:
-      let contrast = computeContrast(s, ds, preproData, params, statTest)
-      if verbose: debug s, contrast
-      spacesForAprioriMerge.add((contrast, s))
-      outputSpaces.add((contrast, s))
+      #for 2 dim spaces
+      if not s.contains(focusDim):
+        continue
+      let deviation = computeAverageDeviation(s, ds, preproData, params, statTest, focusDim)
+      #debug focusDim, s, deviation
+      if verbose: debug s, deviation
+      spacesForAprioriMerge.add((deviation, s))
+      outputSpaces.add((deviation, s))
 
-    #remove top spaces from
-
-    # for the apriori merge we have to convert spacesForAprioriMerge
-    # from StoreTopK (i.e. a heap) into a SubspaceSet (a set)
     var candidateSet = newSubspaceSet()
-    for contrast, subspace in spacesForAprioriMerge.items:
+    for deviation, subspace in spacesForAprioriMerge.items:
       candidateSet.incl(subspace)
     assert candidateSet.len == spacesForAprioriMerge.size
 
-    # replace the current spaces by the result of an apriori merge of the candidates
     let oldNumSpaces = spaces.len
-    spaces = candidateSet.aprioriMerge
+    spaces = candidateSet.aprioriMerge(focusDim)
     for s in spaces:
       assert s.dimensionality == d+1
+
+
     if verbose:
       let info = if oldNumSpaces <= params.numCandidates:
-          ifmt"using all spaces; number of $d-dim spaces: $oldNumSpaces <= numCandidates: ${params.numCandidates}"
+        ifmt"using all spaces; number of $d-dim spaces: $oldNumSpaces <= numCandidates: ${params.numCandidates}"
         else:
           ifmt"number $d-dim spaces [$oldNumSpaces] exceeds numCandidates [${params.numCandidates}] => limiting to top ${params.numCandidates}]"
       echo ifmt" => number of merged 3-dim spaces: ${spaces.len} ($info)"
-
     inc d
 
   #for contrast, subspace in outputSpaces.sortedItems:
   #  echo contrast, subspace
 
   result = outputSpaces
+

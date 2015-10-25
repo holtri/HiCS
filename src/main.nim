@@ -56,6 +56,8 @@ Options:
 # Misc helpers
 # ----------------------------------------
 
+type resultElement = tuple[dim: int, deviation: float, subspace: Subspace]
+
 proc storeResults(filename: string, results: StoreTopK[(float, Subspace)]) =
   var o = open(filename, fmWrite)
   for contrast, subspace in results.sortedItems:
@@ -63,6 +65,12 @@ proc storeResults(filename: string, results: StoreTopK[(float, Subspace)]) =
     o.writeln(ifmt"${contrast}%20.12f; ${subspaceSorted}")
   o.close
 
+proc storeDeviationResults(filename: string, output: seq[resultElement]) =
+  var o = open(filename, fmWrite)
+  for t in output:
+    let subspaceSorted = t.subspace.asSeq.mapIt(string, $it).join(";")
+    o.writeln(ifmt"${t.dim}; ${t.deviation}%20.12f; ${subspaceSorted}")
+  o.close
 
 # ----------------------------------------
 # Command line parsing
@@ -215,11 +223,14 @@ proc expandSubspace (currentSeq: seq[int], maxSubspaceDim: int, maxFullSpaceDim:
       resultString = resultString & tmp
 
   if(len(currentSeq) > 1):
-    let contrast = computeContrast(currentSeq.toSubspace, ds, preproData, params, statTest)
+    #let contrast = computeContrast(currentSeq.toSubspace, ds, preproData, params, statTest)
+    let contrast = 0
     let subspaceString = foldr(currentSeq.mapIt(string,";" & $it & " "), a & b)
     resultString = ifmt("\n$contrast $subspacestring") & resultString
 
   return resultString
+
+
 
 if onlySubspace.dimensionality == 0:
 
@@ -236,16 +247,31 @@ if onlySubspace.dimensionality == 0:
 
   else:
     # regular mode:
-    let results = hicsFramework(ds, params, verbose = not silent)
 
-    storeResults(fileO, results)
+
+    var output: seq[resultElement] = @[]
+    for i in 36..37:#0..ds.ncols-1:
+      echo ifmt("started with dimension $i")
+      let res =  hicsFramework(ds, params, i)
+
+      var tmpIndex = 0
+      for item in res.sortedItems:
+        if tmpIndex == 0:
+          echo ifmt("item: $item")
+          tmpIndex = 1
+        let tmp: resultElement = (dim: i, deviation: item[0], subspace: item[1])
+        output.add(tmp)
+    #let results = hicsFramework(ds, params, verbose = not silent)
+    #debug output
+    storeDeviationResults(fileO, output)
+    #storeResults(fileO, results)
 
 else:
 
   let preproData = ds.generatePreprocessingData()
   let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
-  let contrast = computeContrast(onlySubspace, ds, preproData, params, statTest)
-
+  #let contrast = computeContrast(onlySubspace, ds, preproData, params, statTest)
+  let contrast = 0
   #echo ifmt"Runtime with preprocessing: ${(t3-t1).toDouble / 1000}%.3f"
   #echo ifmt"Runtime contrast calculation only: ${(t3-t2).toDouble / 1000}%.3f"
   echo ifmt"Contrast of subspace $onlySubspace"

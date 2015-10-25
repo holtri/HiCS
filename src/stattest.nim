@@ -60,7 +60,7 @@ proc determineExpectedMaxDeviation(N: int, M: int): float =
     let dev = computeDeviationFromSelfSelection(selection)
     totalDev += dev
 
-  debug (totalDev / possibleOffsets.numPossible)
+  #debug (totalDev / possibleOffsets.numPossible)
   return totalDev / possibleOffsets.numPossible
 
 proc initKSTest*(
@@ -80,7 +80,8 @@ proc initKSTest*(
   let expectedMinDev = determineExpectedMinDeviation(N, M, calibrationIterations)
 
   let expectedMaxDev = determineExpectedMaxDeviation(N, M)
-  debug expectedMinDev, expectedMaxDev
+
+  #debug expectedMinDev, expectedMaxDev
   if verbose:
     echo ifmt"KS expectations:    min value = $expectedMinDev    max value = $expectedMaxDev"
 
@@ -108,18 +109,20 @@ proc computeDeviation*(ks: KSTest, ds: Dataset, cmpAttr: int, selection: IndexSe
 
     if selection[ii] == true:
       cumulatedDistTest += 1.0 / numRemainingObjects.float
-      counter +=1
+      counter += 1
 
     maxDiscrepancy = max(maxDiscrepancy, abs(cumulatedDistTest - cumulatedDistOrig))
 
   if not ks.applyCalibration:
     result = maxDiscrepancy
+
   else:
     #result = (maxDiscrepancy - ks.expectedMinDev) / (ks.expectedMaxDev - ks.expectedMinDev)
     if(counter>0):
-      let maxDev = (ks.N - numRemainingObjects) / ks.N
-      let minDev = 1.0 /counter
-      result = (maxDiscrepancy - minDev) / (maxDev - minDev)
+      #let maxDev = (ks.N - numRemainingObjects) / ks.N
+      #let minDev = 1.0 /counter
+      #result = (maxDiscrepancy - minDev) / (maxDev - minDev)
+      result = maxDiscrepancy
       #debug result, maxDiscrepancy, cmpAttr, maxDev, minDev, counter
     else:
       result = 1.0
