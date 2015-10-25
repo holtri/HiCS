@@ -250,7 +250,7 @@ if onlySubspace.dimensionality == 0:
 
 
     var output: seq[resultElement] = @[]
-    for i in 36..37:#0..ds.ncols-1:
+    for i in 0..ds.ncols-1:
       echo ifmt("started with dimension $i")
       let res =  hicsFramework(ds, params, i)
 
