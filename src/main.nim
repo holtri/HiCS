@@ -248,9 +248,16 @@ if onlySubspace.dimensionality == 0:
   else:
     # regular mode:
 
-
     var output: seq[resultElement] = @[]
+
+    let N = ds.nrows
+
+    let preproData = ds.generatePreprocessingData()
+    let statTest = initKSTest(ds, preproData, (params.alpha * N).toInt)
+
     for i in 0..ds.ncols-1:
+      let res = greedyDeviation(ds,params,i,statTest,preproData)
+    discard """
       echo ifmt("started with dimension $i")
       let res =  hicsFramework(ds, params, i)
 
@@ -261,11 +268,16 @@ if onlySubspace.dimensionality == 0:
           tmpIndex = 1
         let tmp: resultElement = (dim: i, deviation: item[0], subspace: item[1])
         output.add(tmp)
+      let res2 =  deviation2DimSpaces(ds, params, i)
+      for item in res2.sortedItems:
+        let tmp: resultElement = (dim: i, deviation: item[0], subspace: item[1])
+        output.add(tmp)
     #let results = hicsFramework(ds, params, verbose = not silent)
     #debug output
+
     storeDeviationResults(fileO, output)
     #storeResults(fileO, results)
-
+"""
 else:
 
   let preproData = ds.generatePreprocessingData()

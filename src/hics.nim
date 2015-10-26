@@ -11,6 +11,7 @@ import sets
 import topk
 import tables
 import sequtils
+import algorithm
 
 type
   IndexMap = seq[int] # not nil
@@ -98,6 +99,58 @@ proc computeAverageDeviation*[T](subspace: Subspace, ds: Dataset, preproData: Pr
     deviations[cmpAttr] = totalDeviation / numIterations.toFloat
   return deviations
 
+proc greedyDeviation*[T](ds: Dataset, params: Parameters, focusDim: int, statTest: T, preproData: PreproData): StoreTopK[(float, Subspace)] =
+
+  let D = ds.ncols
+  var outputSpaces = newTupleStoreTopK[float,Subspace](params.maxOutputSpaces, keepLarge=true)
+
+  type startElement = tuple[deviation: float, referenceDim: int]
+  var start2Dim: seq[startElement] = @[]
+
+  for i in 1..D-1:
+    if i == focusDim:
+      continue
+    let deviation = computeAverageDeviation([i,focusDim].toSubspace, ds, preproData, params, statTest, focusDim)
+    start2Dim.add((deviation, i))
+  start2Dim = start2Dim.sortedByIt(it.deviation).reversed
+  #debug start2Dim
+
+  var maxDeviation: float = -Inf
+  var maxSubspace: seq[int] = @[focusDim]
+
+  for s in start2Dim:
+    var tmp = maxSubspace
+    tmp.add(s.referenceDim)
+    let deviation = computeAverageDeviation(tmp.toSubspace, ds, preproData, params, statTest, focusDim)
+    #debug tmp, deviation
+    if deviation > maxDeviation:
+      maxDeviation = deviation
+      maxSubspace = tmp
+  outputSpaces.add((maxDeviation, maxSubspace.toSubspace))
+  maxSubspace.sort(system.cmp)
+  debug maxSubspace , maxDeviation
+  result = outputSpaces
+
+proc deviation2DimSpaces*(ds: Dataset, params: Parameters, focusDim: int, verbose = false): StoreTopK[(float, Subspace)] =
+  let N = ds.nrows
+  let D = ds.ncols
+
+  let preproData = ds.generatePreprocessingData()
+  let statTest = initKSTest(ds, preproData, (params.alpha * N).toInt, verbose)
+
+  var outputSpaces = newTupleStoreTopK[float,Subspace](params.maxOutputSpaces, keepLarge=true)
+  var spaces = generate2DSubspaces(D)
+  for s in spaces:
+    var t = s
+    if not s.contains(focusDim):
+        continue
+
+    let deviation = computeAverageDeviation(s, ds, preproData, params, statTest, focusDim)
+    t.excl(focusDim)
+    outputSpaces.add((deviation, t))
+
+  result = outputSpaces
+
 proc hicsFramework*(ds: Dataset, params: Parameters, focusDim: int, verbose = false): StoreTopK[(float, Subspace)] =
 
   let N = ds.nrows
@@ -109,7 +162,7 @@ proc hicsFramework*(ds: Dataset, params: Parameters, focusDim: int, verbose = fa
   var outputSpaces = newTupleStoreTopK[float,Subspace](params.maxOutputSpaces, keepLarge=true)
 
   var d = 2
-  let maxDim = 7
+
   var spaces = generate2DSubspaces(D)
   #var focusDim = 2
   #var spaces = generate2DSubspaces(D,focusDim)
@@ -121,10 +174,16 @@ proc hicsFramework*(ds: Dataset, params: Parameters, focusDim: int, verbose = fa
     #debug spaces
     for s in spaces:
       #for 2 dim spaces
+      var t = s
       if not s.contains(focusDim):
         continue
+
       let deviation = computeAverageDeviation(s, ds, preproData, params, statTest, focusDim)
-      #debug focusDim, s, deviation
+      if d == 2:
+
+        t.excl(focusDim)
+        debug focusDim, t, deviation
+
       if verbose: debug s, deviation
       spacesForAprioriMerge.add((deviation, s))
       outputSpaces.add((deviation, s))
