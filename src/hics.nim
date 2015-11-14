@@ -99,7 +99,7 @@ proc computeAverageDeviation*[T](subspace: Subspace, ds: Dataset, preproData: Pr
     deviations[cmpAttr] = totalDeviation / numIterations.toFloat
   return deviations
 
-proc greedyDeviation*[T](ds: Dataset, params: Parameters, focusDim: int, statTest: T, preproData: PreproData): StoreTopK[(float, Subspace)] =
+proc greedyDeviation*[T](ds: Dataset, params: Parameters, focusDim: int, statTest: T, preproData: PreproData): tuple[deviation: float, subspace: Subspace]  =
 
   let D = ds.ncols
   var outputSpaces = newTupleStoreTopK[float,Subspace](params.maxOutputSpaces, keepLarge=true)
@@ -107,16 +107,22 @@ proc greedyDeviation*[T](ds: Dataset, params: Parameters, focusDim: int, statTes
   type startElement = tuple[deviation: float, referenceDim: int]
   var start2Dim: seq[startElement] = @[]
 
-  for i in 1..D-1:
+  for i in 0..D-1:
     if i == focusDim:
       continue
     let deviation = computeAverageDeviation([i,focusDim].toSubspace, ds, preproData, params, statTest, focusDim)
+    let tmpDebug = [i, focusDim].toSubspace
+    #debug focusdim,tmpDebug, deviation
+    if focusDim==20:
+      debug i, deviation
     start2Dim.add((deviation, i))
+
   start2Dim = start2Dim.sortedByIt(it.deviation).reversed
   #debug start2Dim
 
   var maxDeviation: float = -Inf
   var maxSubspace: seq[int] = @[focusDim]
+
 
   for s in start2Dim:
     var tmp = maxSubspace
@@ -129,7 +135,7 @@ proc greedyDeviation*[T](ds: Dataset, params: Parameters, focusDim: int, statTes
   outputSpaces.add((maxDeviation, maxSubspace.toSubspace))
   maxSubspace.sort(system.cmp)
   debug maxSubspace , maxDeviation
-  result = outputSpaces
+  result = (maxDeviation, maxSubspace.toSubspace)
 
 proc deviation2DimSpaces*(ds: Dataset, params: Parameters, focusDim: int, verbose = false): StoreTopK[(float, Subspace)] =
   let N = ds.nrows
@@ -139,6 +145,7 @@ proc deviation2DimSpaces*(ds: Dataset, params: Parameters, focusDim: int, verbos
   let statTest = initKSTest(ds, preproData, (params.alpha * N).toInt, verbose)
 
   var outputSpaces = newTupleStoreTopK[float,Subspace](params.maxOutputSpaces, keepLarge=true)
+
   var spaces = generate2DSubspaces(D)
   for s in spaces:
     var t = s
