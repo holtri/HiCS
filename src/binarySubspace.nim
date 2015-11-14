@@ -3,9 +3,20 @@ import future
 import strutils
 import unittest
 import math
+import sets
+import hashes
 
 type
   BinarySubspace* = seq[int]
+  BinarySolution* = tuple
+    binarySubspace: BinarySubspace
+    deviations: seq[float]
+  BinaryPopulation* = HashSet[BinarySolution]
+
+proc hash*(x: BinarySolution): Hash =
+  var h: Hash = 0
+  h = h !& hash(x.binarySubspace)
+  result = !$h
 
 template isBinary(b: int): bool =
   b == 0 or b == 1
@@ -42,15 +53,9 @@ proc onePointCrossover(p1: BinarySubspace, p2:BinarySubspace, crossIndex: int): 
     var c2 = p2[0..crossIndex].concat(p1[(crossIndex + 1)..high(p2)])
     result = (c1,c2)
 
-proc onePointMutation(p: BinarySubspace, prob: float): BinarySubspace =
+proc bitStringMutation(p: BinarySubspace, prob: float): BinarySubspace =
   result = p
   result.applyIt(flip(it, prob))
-
-when isMainModule:
-  var nums = BinarySubspace(@[1,0,0,1,1])
-  randomize()
-  echo nums.onePointMutation(0.5)
-
 
 suite "Binary subspace testing":
   setup:
@@ -81,3 +86,7 @@ suite "Binary subspace testing":
     let tmp = 0
     check(tmp.flip(1.0) == 1)
     check(tmp.flip(0) == 0)
+
+  test "hashBinarySubspace":
+    check(hash(a) == hash(@[1,0,0,1,1]))
+    check(hash(b) == hash(@[0,0,1,0,0]))
