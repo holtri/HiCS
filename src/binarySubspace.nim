@@ -2,6 +2,7 @@ import sequtils
 import future
 import strutils
 import unittest
+import math
 
 type
   BinarySubspace* = seq[int]
@@ -12,6 +13,14 @@ template isBinary(b: int): bool =
 proc flip(bit: int): int =
   assert bit.isBinary
   if bit == 0: 1 else: 0
+
+proc flip(bit: int, prob: float): int =
+  assert prob <= 1.0 and prob >= 0.0
+  assert bit.isBinary
+  if random(1.0) < prob:
+    return flip(bit)
+  else:
+    return bit
 
 proc toReal(s: BinarySubspace): string =
   result = "["
@@ -34,10 +43,14 @@ proc onePointCrossover(p1: BinarySubspace, p2:BinarySubspace, crossIndex: int): 
     result = (c1,c2)
 
 proc onePointMutation(p: BinarySubspace, prob: float): BinarySubspace =
-  p.applyIt(it+1)
+  result = p
+  result.applyIt(flip(it, prob))
 
 when isMainModule:
-  echo flip(22)
+  var nums = BinarySubspace(@[1,0,0,1,1])
+  randomize()
+  echo nums.onePointMutation(0.5)
+
 
 suite "Binary subspace testing":
   setup:
@@ -59,9 +72,12 @@ suite "Binary subspace testing":
     check(actual[0] == @[1,0,0,0,0])
     check(actual[1] == @[0,0,1,1,1])
 
-  test "flipBit":
+  test "flipBit1":
     let tmp = 1
     check(tmp.flip == 0)
     check(tmp.flip.flip == 1)
 
-    
+  test "flipBit2":
+    let tmp = 0
+    check(tmp.flip(1.0) == 1)
+    check(tmp.flip(0) == 0)
