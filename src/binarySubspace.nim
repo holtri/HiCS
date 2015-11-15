@@ -14,6 +14,7 @@ type
     dominationSet: HashSet[BinarySolution]
     dominatedCount: int
     rank: int
+    crowdingDistance: float
   BinaryPopulation* = HashSet[BinarySolution]
 
 proc hash*(x: BinarySolution): Hash =
@@ -39,11 +40,16 @@ proc flip(bit: int, prob: float): int =
   else:
     return bit
 
+proc asSeq*(pop: BinaryPopulation): seq[BinarySolution] =
+  result = @[]
+  for p in pop:
+    result.add(p)
+
 proc randomBinarySubspace*(totalDim: int, proportion: float): BinarySubspace =
   return newSeqWith(totalDim, flip(0, proportion))
 
 proc initBinarySolution*(binarySubspace: BinarySubspace, deviations: seq[float]): BinarySolution =
-  return (binarySubspace, deviations, initSet[BinarySolution](),0,0)
+  return (binarySubspace, deviations, initSet[BinarySolution](),0,0,0.0)
 
 proc initBinarySolution*(binarySubspace: BinarySubspace): BinarySolution =
   return initBinarySolution(binarySubspace, newSeqWith(len(binarySubspace), 0.0))
@@ -156,20 +162,33 @@ suite "Binary subspace testing":
     check(actual == randomBinarySubspace(3,1.0))
 
   test "dominatesTest":
-    var c: BinarySolution = (BinarySubspace(@[1,0,0,1,1]),@[0.6,0,0,0.5,0.5],initSet[BinarySolution](),-1,0)
-    var d: BinarySolution = (BinarySubspace(@[1,0,0,1,1]),@[0.5,0,0,0.5,0.5],initSet[BinarySolution](),-1,0)
+    var c: BinarySolution = initBinarySolution(@[1,0,0,1,1],@[0.6,0,0,0.5,0.5])
+    var d: BinarySolution = initBinarySolution(@[1,0,0,1,1],@[0.5,0,0,0.5,0.5])
     check(c.dominates(d))
     check(not d.dominates(c))
 
-    c = (BinarySubspace(@[1,0,0,1,1]),@[0.6,0,0,0.4,0.5],initSet[BinarySolution](),-1,0)
+    c = initBinarySolution(@[1,0,0,1,1],@[0.6,0,0,0.4,0.5])
     check(not c.dominates(d))
     check(not d.dominates(c))
 
-    c = (BinarySubspace(@[1,0,0,0,1]),@[0.6,0,0,0,0.7],initSet[BinarySolution](),-1,0)
+    c = initBinarySolution(@[1,0,0,0,1],@[0.6,0,0,0,0.7])
 
     check(c.dominates(d))
     check(not d.dominates(c))
 
-    c = (BinarySubspace(@[1,0,0,0,1]),@[0.5,0,0,0.5,0.5],initSet[BinarySolution](),-1,0)
+    c = initBinarySolution(@[1,0,0,0,1],@[0.5,0,0,0.5,0.5])
     check(not c.dominates(d))
     check(not d.dominates(c))
+
+  test "asSeqTest":
+    var e: BinarySolution = initBinarySolution(@[1,1,0],@[0.5,0.5,0.0])
+    var f: BinarySolution = initBinarySolution(@[0,1,1],@[0.0,0.5,0.5])
+    var g: BinarySolution = initBinarySolution(@[1,0,1],@[0.5,0.0,0.5])
+
+    var pop: BinaryPopulation = initBinaryPopulation(5)
+    pop.incl(e)
+    pop.incl(f)
+    pop.incl(g)
+
+    var seqPop = pop.asSeq
+    check(seqPop.len == pop.len)

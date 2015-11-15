@@ -5,6 +5,7 @@ import sequtils
 import tables
 import unittest
 import utils
+import algorithm
 
 proc generateRandomPopulation(N: int, totalDim: int): BinaryPopulation =
   result = initBinaryPopulation(N)
@@ -48,12 +49,41 @@ proc fastNonDominatedSort(population: BinaryPopulation): Table[int, BinaryPopula
     else: break
   return F
 
+proc crowdingDistance(population: BinaryPopulation, totalDim: int): BinaryPopulation =
+  var pm = population.asSeq
+
+  for i in 0..totalDim-1:
+    pm = pm.sorted(proc (x,y: BinarySolution): int=
+      result = - cmp(x.deviations[i], y.deviations[i]))
+    pm[0].crowdingDistance += 999
+    pm[totalDim-1].crowdingDistance += 999
+    let range = abs(pm[0].deviations[i] - pm[totalDim-1].deviations[i])
+    for j in 1..totalDim-2:
+      pm[j].crowdingDistance += (pm[j-1].deviations[i] + pm[j+1].deviations[i]) / range
+
+  return pm.toSet
+
 discard """ when isMainModule:
 
   var a: BinarySolution = (BinarySubspace(@[1,0,0,1,1]),@[0.5,0,0,0.5,0.5])
   echo a
  """
 suite "nsgaii testing":
+
+  test "crowdingDistance":
+    var a: BinarySolution = initBinarySolution(@[1,1,0],@[0.5,0.5,0.0])
+    var b: BinarySolution = initBinarySolution(@[0,1,1],@[0.0,0.5,0.5])
+    var c: BinarySolution = initBinarySolution(@[1,0,1],@[0.5,0.0,0.5])
+
+    var pop: BinaryPopulation = initBinaryPopulation(5)
+
+    pop.incl(a)
+    pop.incl(b)
+    pop.incl(c)
+
+    var crowdingPop = crowdingDistance(pop,3)
+    for p in crowdingPop:
+      debug p.crowdingDistance
 
   test "fastNonDominatedSort":
     var a: BinarySolution = initBinarySolution(@[1,0,0,1,1],@[0.5,0.0,0.0,0.5,0.5]) #not dominated
@@ -89,4 +119,4 @@ suite "nsgaii testing":
     check(actual[2].contains(c))
     check(actual[3].contains(d))
     check(actual[4].contains(e))
-    
+
