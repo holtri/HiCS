@@ -41,6 +41,15 @@ proc toReal(s: BinarySubspace): string =
       add(result, intToStr(index))
   add(result, "]")
 
+proc randomBinarySubspace*(totalDim: int, proportion: float): BinarySubspace =
+  return newSeqWith(totalDim, flip(0, proportion))
+
+proc initBinarySolution*(binarySubspace: BinarySubspace): BinarySolution =
+  return (binarySubspace, newSeqWith(len(binarySubspace), 0.0))
+
+proc initBinaryPopulation*(populationSize: int): BinaryPopulation =
+  return initSet[BinarySolution](nextPowerOfTwo(populationSize))
+
 proc onePointCrossover(p1: BinarySubspace, p2:BinarySubspace, crossIndex: int): (BinarySubspace, BinarySubspace) =
   assert len(p1) == len(p2)
   assert crossIndex >= low(p1) and crossIndex <= high(p1)
@@ -56,6 +65,18 @@ proc onePointCrossover(p1: BinarySubspace, p2:BinarySubspace, crossIndex: int): 
 proc bitStringMutation(p: BinarySubspace, prob: float): BinarySubspace =
   result = p
   result.applyIt(flip(it, prob))
+
+proc `$`*(bs: BinarySolution): string =
+  result =""
+  for index in 0..high(bs.binarySubspace):
+    result &= $index & ":(" & $bs.binarySubspace[index] & "," & $bs.deviations[index] & ") "
+
+proc `$`*(bp: BinaryPopulation): string =
+  result = ""
+  for item in bp:
+    result &= $item & "\n"
+
+#when isMainModule:
 
 suite "Binary subspace testing":
   setup:
@@ -77,16 +98,24 @@ suite "Binary subspace testing":
     check(actual[0] == @[1,0,0,0,0])
     check(actual[1] == @[0,0,1,1,1])
 
-  test "flipBit1":
+  test "flipBitTest1":
     let tmp = 1
     check(tmp.flip == 0)
     check(tmp.flip.flip == 1)
 
-  test "flipBit2":
+  test "flipBitTest2":
     let tmp = 0
     check(tmp.flip(1.0) == 1)
     check(tmp.flip(0) == 0)
 
-  test "hashBinarySubspace":
+  test "hashBinarySubspaceTest":
     check(hash(a) == hash(@[1,0,0,1,1]))
     check(hash(b) == hash(@[0,0,1,0,0]))
+
+  test "randomBinarySubspaceTest":
+    var actual = randomBinarySubspace(5, 0.3)
+    check(len(actual) == 5)
+    actual = @[1,1,1]
+    check(actual == randomBinarySubspace(3,1.0))
+
+    
