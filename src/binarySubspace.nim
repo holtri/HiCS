@@ -11,12 +11,18 @@ type
   BinarySolution* = tuple
     binarySubspace: BinarySubspace
     deviations: seq[float]
+    dominationSet: HashSet[BinarySolution]
+    dominatedCount: int
+    rank: int
   BinaryPopulation* = HashSet[BinarySolution]
 
 proc hash*(x: BinarySolution): Hash =
   var h: Hash = 0
   h = h !& hash(x.binarySubspace)
   result = !$h
+
+proc `==`*(x: BinarySolution, y:BinarySolution): bool =
+  return x.hash == y.hash
 
 template isBinary(b: int): bool =
   b == 0 or b == 1
@@ -36,11 +42,25 @@ proc flip(bit: int, prob: float): int =
 proc randomBinarySubspace*(totalDim: int, proportion: float): BinarySubspace =
   return newSeqWith(totalDim, flip(0, proportion))
 
+proc initBinarySolution*(binarySubspace: BinarySubspace, deviations: seq[float]): BinarySolution =
+  return (binarySubspace, deviations, initSet[BinarySolution](),0,0)
+
 proc initBinarySolution*(binarySubspace: BinarySubspace): BinarySolution =
-  return (binarySubspace, newSeqWith(len(binarySubspace), 0.0))
+  return initBinarySolution(binarySubspace, newSeqWith(len(binarySubspace), 0.0))
 
 proc initBinaryPopulation*(populationSize: int): BinaryPopulation =
   return initSet[BinarySolution](nextPowerOfTwo(populationSize))
+
+proc dominates*(a: BinarySolution, b: BinarySolution): bool =
+  assert a.binarySubspace.len == b.binarySubspace.len
+  result = false
+  for index in 0..high(a.binarySubspace):
+    if a.binarySubspace[index] == 1:
+      if a.deviations[index] < b.deviations[index]:
+        result = false
+        break
+      elif a.deviations[index] > b.deviations[index]:
+        result = true
 
 proc onePointCrossover(p1: BinarySubspace, p2:BinarySubspace, crossIndex: int): (BinarySubspace, BinarySubspace) =
   assert len(p1) == len(p2)
@@ -135,4 +155,21 @@ suite "Binary subspace testing":
     actual = @[1,1,1]
     check(actual == randomBinarySubspace(3,1.0))
 
-    
+  test "dominatesTest":
+    var c: BinarySolution = (BinarySubspace(@[1,0,0,1,1]),@[0.6,0,0,0.5,0.5],initSet[BinarySolution](),-1,0)
+    var d: BinarySolution = (BinarySubspace(@[1,0,0,1,1]),@[0.5,0,0,0.5,0.5],initSet[BinarySolution](),-1,0)
+    check(c.dominates(d))
+    check(not d.dominates(c))
+
+    c = (BinarySubspace(@[1,0,0,1,1]),@[0.6,0,0,0.4,0.5],initSet[BinarySolution](),-1,0)
+    check(not c.dominates(d))
+    check(not d.dominates(c))
+
+    c = (BinarySubspace(@[1,0,0,0,1]),@[0.6,0,0,0,0.7],initSet[BinarySolution](),-1,0)
+
+    check(c.dominates(d))
+    check(not d.dominates(c))
+
+    c = (BinarySubspace(@[1,0,0,0,1]),@[0.5,0,0,0.5,0.5],initSet[BinarySolution](),-1,0)
+    check(not c.dominates(d))
+    check(not d.dominates(c))
