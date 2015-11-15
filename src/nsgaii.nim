@@ -11,5 +11,4 @@ proc generateRandomPopulation(N: int, totalDim: int): BinaryPopulation =
 
 when isMainModule:
   var a = generateRandomPopulation(2, 4)
-  var test = a.mapIt($it & "\n")
   echo a

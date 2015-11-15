@@ -67,15 +67,17 @@ proc bitStringMutation(p: BinarySubspace, prob: float): BinarySubspace =
   result.applyIt(flip(it, prob))
 
 proc `$`*(bs: BinarySolution): string =
-  result =""
+  result ="["
   for index in 0..high(bs.binarySubspace):
     result &= $index & ":(" & $bs.binarySubspace[index] & "," & $bs.deviations[index] & ") "
+  result.removeSuffix(" ")
+  result &= "]"
 
 proc `$`*(bp: BinaryPopulation): string =
   result = ""
   for item in bp:
-    result &= $item & "\n"
-
+    result &= $item & ",\n"
+  result.removeSuffix(",\n")
 #when isMainModule:
 
 suite "Binary subspace testing":
