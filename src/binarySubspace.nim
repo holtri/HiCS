@@ -33,14 +33,6 @@ proc flip(bit: int, prob: float): int =
   else:
     return bit
 
-proc toReal(s: BinarySubspace): string =
-  result = "["
-  for index,value in s:
-    if value == 1:
-      addSep(result, startLen=len("["))
-      add(result, intToStr(index))
-  add(result, "]")
-
 proc randomBinarySubspace*(totalDim: int, proportion: float): BinarySubspace =
   return newSeqWith(totalDim, flip(0, proportion))
 
@@ -66,6 +58,14 @@ proc bitStringMutation(p: BinarySubspace, prob: float): BinarySubspace =
   result = p
   result.applyIt(flip(it, prob))
 
+proc toReal(s: BinarySubspace): string =
+  result = "["
+  for index,value in s:
+    if value == 1:
+      addSep(result, startLen=len("["))
+      add(result, intToStr(index))
+  add(result, "]")
+
 proc `$`*(bs: BinarySolution): string =
   result ="["
   for index in 0..high(bs.binarySubspace):
@@ -73,11 +73,26 @@ proc `$`*(bs: BinarySolution): string =
   result.removeSuffix(" ")
   result &= "]"
 
+proc toReal*(bs: BinarySolution): string =
+  result = "["
+  for index,value in bs.binarySubspace:
+    if value == 1:
+      result &= $index & ": " & $bs.deviations[index] & ", "
+  result.removeSuffix(", ")
+  result &= "]"
+
 proc `$`*(bp: BinaryPopulation): string =
   result = ""
   for item in bp:
     result &= $item & ",\n"
   result.removeSuffix(",\n")
+
+proc toReal*(bp: BinaryPopulation): string =
+  result = ""
+  for item in bp:
+    result &= item.toReal & ",\n"
+  result.removeSuffix(",\n")
+
 #when isMainModule:
 
 suite "Binary subspace testing":

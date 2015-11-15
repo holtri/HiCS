@@ -10,5 +10,5 @@ proc generateRandomPopulation(N: int, totalDim: int): BinaryPopulation =
   return result
 
 when isMainModule:
-  var a = generateRandomPopulation(2, 4)
-  echo a
+  var a = generateRandomPopulation(7, 40)
+  echo a.toReal
