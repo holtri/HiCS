@@ -6,12 +6,26 @@ import tables
 import unittest
 import utils
 import algorithm
+import preprocessing
+import binaryHeap
+import dataset
+import hics
+import stattest
+import subspace
 
 proc generateRandomPopulation(N: int, totalDim: int): BinaryPopulation =
   result = initBinaryPopulation(N)
   while(len(result) < N):
     result.incl(initBinarySolution(randomBinarySubspace(totalDim,0.1)))
   return result
+
+proc calculateDeviations(b: BinarySolution, ds: Dataset, preproData: PreproData, params: Parameters, statTest: KSTest): seq[float] =
+  result = b.deviations
+  for i in 0..b.deviations.high:
+    if b.binarySubspace[i] == 1:
+      let cmpAttr:int = i
+      let subspace = b.binarySubspace.asSubspace
+      result[i] = computeAverageDeviation(subspace, ds, preproData, params, statTest, cmpAttr)
 
 proc fastNonDominatedSort(population: BinaryPopulation): Table[int, BinaryPopulation] =
   var pm = population
@@ -51,17 +65,53 @@ proc fastNonDominatedSort(population: BinaryPopulation): Table[int, BinaryPopula
 
 proc crowdingDistance(population: BinaryPopulation, totalDim: int): BinaryPopulation =
   var pm = population.asSeq
+  for i in 0..pm.high:
+    pm[i].crowdingDistance = 0
 
   for i in 0..totalDim-1:
     pm = pm.sorted(proc (x,y: BinarySolution): int=
       result = - cmp(x.deviations[i], y.deviations[i]))
-    pm[0].crowdingDistance += 999
-    pm[totalDim-1].crowdingDistance += 999
-    let range = abs(pm[0].deviations[i] - pm[totalDim-1].deviations[i])
-    for j in 1..totalDim-2:
-      pm[j].crowdingDistance += (pm[j-1].deviations[i] + pm[j+1].deviations[i]) / range
+
+    var range = abs(pm[0].deviations[i] - pm[pm.high].deviations[i])
+    #only increase distance if there is any positive deviation
+    if range < 0.001:
+      range = 1
+    else:
+      pm[0].crowdingDistance += 999
+      pm[pm.high].crowdingDistance += 999
+
+    for j in 1..pm.high-1:
+      pm[j].crowdingDistance += abs(pm[j-1].deviations[i] - pm[j+1].deviations[i]) / range
 
   return pm.toSet
+
+proc crowdingSelection(a:BinarySolution, b:BinarySolution): BinarySolution =
+  if a.rank < b.rank:
+    return a
+  elif a.rank > b.rank:
+    return b
+  else:
+    if a.crowdingDistance > b.crowdingDistance:
+      return a
+    else:
+      return b
+
+proc calculateDeviations(population: BinaryPopulation, ds: Dataset, preproData: PreproData, params: Parameters, statTest: KSTest): BinaryPopulation =
+  var pop = population
+  for p in pop:
+    #let a = calculateDeviations(p, ds, preproData, params, statTest)
+    pop[p].deviations = calculateDeviations(p, ds, preproData, params, statTest)
+  return pop
+
+proc runNsga*(N: int, ds: Dataset, preproData: PreproData, params: Parameters, statTest: KSTest): SubspaceSet =
+  let totalDim = ds.ncols
+  var pop = initRandomBinaryPopulation(N, totalDim, 0.1)
+  debug pop
+  pop = calculateDeviations(pop,ds, preproData, params, statTest)
+  debug pop
+  return result
+
+
 
 discard """ when isMainModule:
 
@@ -70,10 +120,25 @@ discard """ when isMainModule:
  """
 suite "nsgaii testing":
 
+  test "crowdingSelection":
+    var a: BinarySolution = initBinarySolution(@[1,1,1,0])
+    var b: BinarySolution = initBinarySolution(@[1,1,1,1])
+    var c: BinarySolution = initBinarySolution(@[0,1,1,0])
+
+    a.rank = 1
+    b.rank = 2
+    c.rank = 2
+
+    a.crowdingDistance = 4.3
+    b.crowdingDistance = 3.3
+    c.crowdingDistance = 2.3
+    check(crowdingSelection(a,b) == a)
+    check(crowdingSelection(b,c) == b)
+
   test "crowdingDistance":
-    var a: BinarySolution = initBinarySolution(@[1,1,0],@[0.5,0.5,0.0])
-    var b: BinarySolution = initBinarySolution(@[0,1,1],@[0.0,0.5,0.5])
-    var c: BinarySolution = initBinarySolution(@[1,0,1],@[0.5,0.0,0.5])
+    var a: BinarySolution = initBinarySolution(@[1,1,1,0],@[0.8,0.6,0.2,0.0]) #always ranked in the middle
+    var b: BinarySolution = initBinarySolution(@[1,1,1,1],@[0.9,0.5,0.3,0.0]) #ranked 2x top, 1xbottom
+    var c: BinarySolution = initBinarySolution(@[0,1,1,0],@[0.0,0.8,0.1,0.0]) #ranked 1x top, 2xbottom
 
     var pop: BinaryPopulation = initBinaryPopulation(5)
 
@@ -81,9 +146,11 @@ suite "nsgaii testing":
     pop.incl(b)
     pop.incl(c)
 
-    var crowdingPop = crowdingDistance(pop,3)
-    for p in crowdingPop:
-      debug p.crowdingDistance
+    var crowdingPop = crowdingDistance(pop,4)
+
+    check(crowdingPop[a].crowdingDistance ==3)
+    check(crowdingPop[b].crowdingDistance ==2997)
+    check(crowdingPop[c].crowdingDistance ==2997)
 
   test "fastNonDominatedSort":
     var a: BinarySolution = initBinarySolution(@[1,0,0,1,1],@[0.5,0.0,0.0,0.5,0.5]) #not dominated
@@ -120,3 +187,4 @@ suite "nsgaii testing":
     check(actual[3].contains(d))
     check(actual[4].contains(e))
 
+    

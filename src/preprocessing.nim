@@ -2,10 +2,11 @@ import dataset
 import utils
 import algorithm
 import future
+import sequtils
 
 type
   IndexMap = seq[int] # not nil
-  
+
   PreproData* = object
     indexMaps*: seq[IndexMap] not nil
 

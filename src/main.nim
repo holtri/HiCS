@@ -13,11 +13,12 @@ import subspace
 import stattest as module_stattest
 import typetraits
 import topk
-import threadpool
+#import threadpool
 import locks
 import math
 #import optionals
-
+import nsgaii
+import binarySubspace
 
 when false:
   #let ds = loadDataset("/tmp/data.csv")
@@ -176,6 +177,8 @@ let allSubspaces    = pairExtractor("--allSubspaces", 1)
 let startDimension  = pairExtractor("--startDimension", 0)
 let maxSubSpaceDim  = pairExtractor("--maxSubspaceDim", 0)
 
+let mode  = pairExtractor("--mode", 0)
+
 let randomSeed = pairExtractor("--randomSeed", -1)
 
 if not silent:
@@ -230,73 +233,81 @@ proc expandSubspace (currentSeq: seq[int], maxSubspaceDim: int, maxFullSpaceDim:
 
   return resultString
 
+#case mode:
+#of 0:
+echo "using NSGAII mode"
+let N = 100
+let preproData = ds.generatePreprocessingData()
+let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
+var res = runNsga(N, ds, preproData, params, statTest)
+
+discard """ else:
+
+  if onlySubspace.dimensionality == 0:
+
+    if allSubspaces > 1:
+      let preproData = ds.generatePreprocessingData()
+      let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
+      let maxFullSpaceDim = ds.nCols - 1
+
+      debug maxFullSpaceDim, maxSubspaceDim, startDimension
+      let initialSeq = @[startDimension]
+      var res = expandSubspace(initialSeq, maxSubspaceDim, maxFullSpaceDim, preproData, statTest, ds)
+      storeBruteForceResults(fileO,res, initialSeq[0])
+      sync()
+
+    else:
+      # regular mode:
+
+      #var output: seq[resultElement] = @[]
+
+      let N = ds.nrows
+
+      let preproData = ds.generatePreprocessingData()
+      let statTest = initKSTest(ds, preproData, (params.alpha * N).toInt)
+
+      var outputSpaces = newTupleStoreTopK[float,Subspace](params.maxOutputSpaces, keepLarge=true)
+      for i in 0..ds.ncols-1:
+        debug i
+        let res = greedyDeviation(ds,params,i,statTest,preproData)
+        #for item in res.sortedItems:
+        #  let tmp: resultElement = (dim: i, deviation: item[0], subspace: item[1])
+        #  output.add(tmp)
+        outputSpaces.add((res.deviation, res.subspace))
+      storeResults(fileO, outputSpaces)
 
 
-if onlySubspace.dimensionality == 0:
+        echo ifmt("started with dimension $i")
+        let res =  hicsFramework(ds, params, i)
 
-  if allSubspaces > 1:
-    let preproData = ds.generatePreprocessingData()
-    let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
-    let maxFullSpaceDim = ds.nCols - 1
+        var tmpIndex = 0
+        for item in res.sortedItems:
+          if tmpIndex == 0:
+            echo ifmt("item: $item")
+            tmpIndex = 1
+          let tmp: resultElement = (dim: i, deviation: item[0], subspace: item[1])
+          output.add(tmp)
+        let res2 =  deviation2DimSpaces(ds, params, i)
+        for item in res2.sortedItems:
+          let tmp: resultElement = (dim: i, deviation: item[0], subspace: item[1])
+          output.add(tmp)
+      #let results = hicsFramework(ds, params, verbose = not silent)
+      #debug output
 
-    debug maxFullSpaceDim, maxSubspaceDim, startDimension
-    let initialSeq = @[startDimension]
-    var res = expandSubspace(initialSeq, maxSubspaceDim, maxFullSpaceDim, preproData, statTest, ds)
-    storeBruteForceResults(fileO,res, initialSeq[0])
-    sync()
+      storeDeviationResults(fileO, output)
+      #storeResults(fileO, results)
 
   else:
-    # regular mode:
-
-    #var output: seq[resultElement] = @[]
-
-    let N = ds.nrows
 
     let preproData = ds.generatePreprocessingData()
-    let statTest = initKSTest(ds, preproData, (params.alpha * N).toInt)
-
-    var outputSpaces = newTupleStoreTopK[float,Subspace](params.maxOutputSpaces, keepLarge=true)
-    for i in 0..ds.ncols-1:
-      debug i
-      let res = greedyDeviation(ds,params,i,statTest,preproData)
-      #for item in res.sortedItems:
-      #  let tmp: resultElement = (dim: i, deviation: item[0], subspace: item[1])
-      #  output.add(tmp)
-      outputSpaces.add((res.deviation, res.subspace))
-    storeResults(fileO, outputSpaces)
-
-    discard """
-      echo ifmt("started with dimension $i")
-      let res =  hicsFramework(ds, params, i)
-
-      var tmpIndex = 0
-      for item in res.sortedItems:
-        if tmpIndex == 0:
-          echo ifmt("item: $item")
-          tmpIndex = 1
-        let tmp: resultElement = (dim: i, deviation: item[0], subspace: item[1])
-        output.add(tmp)
-      let res2 =  deviation2DimSpaces(ds, params, i)
-      for item in res2.sortedItems:
-        let tmp: resultElement = (dim: i, deviation: item[0], subspace: item[1])
-        output.add(tmp)
-    #let results = hicsFramework(ds, params, verbose = not silent)
-    #debug output
-
-    storeDeviationResults(fileO, output)
-    #storeResults(fileO, results)
-"""
-else:
-
-  let preproData = ds.generatePreprocessingData()
-  let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
-  #let contrast = computeContrast(onlySubspace, ds, preproData, params, statTest)
-  let contrast = 0
-  #echo ifmt"Runtime with preprocessing: ${(t3-t1).toDouble / 1000}%.3f"
-  #echo ifmt"Runtime contrast calculation only: ${(t3-t2).toDouble / 1000}%.3f"
-  echo ifmt"Contrast of subspace $onlySubspace"
-  echo contrast
-
+    let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
+    #let contrast = computeContrast(onlySubspace, ds, preproData, params, statTest)
+    let contrast = 0
+    #echo ifmt"Runtime with preprocessing: ${(t3-t1).toDouble / 1000}%.3f"
+    #echo ifmt"Runtime contrast calculation only: ${(t3-t2).toDouble / 1000}%.3f"
+    echo ifmt"Contrast of subspace $onlySubspace"
+    echo contrast
+ """
 
 
 

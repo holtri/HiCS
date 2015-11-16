@@ -19,10 +19,10 @@ proc newTupleStoreTopK*[K,V](k: int, keepLarge: bool = true):
   proc cmpByKey[K,V](x: (K,V), y: (K,V)): int =
     # in order to keep "large" values we need a min-heap
     # where as "small" values require a max-heap.
-    if keepLarge:
+#    if keepLarge:
       system.cmp(x[0], y[0])
-    else:
-      system.cmp(y[0], x[0])
+#    else:
+#      system.cmp(y[0], x[0])
   StoreTopK[(K,V)](k: k, h: newHeap[(K,V)](cmpByKey[K,V]))
 
 
@@ -77,4 +77,4 @@ when isMainModule:
       let values = toSeq(stk.sortedItems)
       echo values
 
-  
+

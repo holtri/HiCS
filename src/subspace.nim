@@ -12,7 +12,7 @@ export sets.incl
 
 type
   Subspace* = HashSet[int]
-  SubspaceSet = HashSet[Subspace]
+  SubspaceSet* = HashSet[Subspace]
 
 when NimVersion == "0.11.2":
   type

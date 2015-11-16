@@ -5,6 +5,8 @@ import unittest
 import math
 import sets
 import hashes
+import subspace
+import hics
 
 type
   BinarySubspace* = seq[int]
@@ -45,6 +47,9 @@ proc asSeq*(pop: BinaryPopulation): seq[BinarySolution] =
   for p in pop:
     result.add(p)
 
+proc isValid(s: BinarySubspace): bool =
+  return foldl(s, a + b) > 1
+
 proc randomBinarySubspace*(totalDim: int, proportion: float): BinarySubspace =
   return newSeqWith(totalDim, flip(0, proportion))
 
@@ -56,6 +61,15 @@ proc initBinarySolution*(binarySubspace: BinarySubspace): BinarySolution =
 
 proc initBinaryPopulation*(populationSize: int): BinaryPopulation =
   return initSet[BinarySolution](nextPowerOfTwo(populationSize))
+
+proc initRandomBinaryPopulation*(populationSize: int, totalDim: int, proportion: float): BinaryPopulation =
+  result = initBinaryPopulation(populationSize)
+  for i in 1..populationSize:
+    var binarySubspace = randomBinarySubspace(totalDim, proportion)
+    while not binarySubspace.isValid:
+      binarySubspace = randomBinarySubspace(totalDim, proportion)
+    let binarySolution = initBinarySolution(binarySubspace)
+    result.incl(binarySolution)
 
 proc dominates*(a: BinarySolution, b: BinarySolution): bool =
   assert a.binarySubspace.len == b.binarySubspace.len
@@ -92,6 +106,12 @@ proc toReal(s: BinarySubspace): string =
       add(result, intToStr(index))
   add(result, "]")
 
+proc asSubspace*(s: BinarySubspace): Subspace =
+  result.init()
+  for index, value in s:
+    if value == 1:
+      result.incl(index)
+
 proc `$`*(bs: BinarySolution): string =
   result ="["
   for index in 0..high(bs.binarySubspace):
@@ -124,7 +144,7 @@ proc toReal*(bp: BinaryPopulation): string =
 suite "Binary subspace testing":
   setup:
     var a = BinarySubspace(@[1,0,0,1,1])
-    var b = BinarySubspace(@[0,0,1,0,0])
+    var b = BinarySubspace(@[0,1,1,0,0])
 
   test "onePointCrossovverTest1":
     let actual = onePointCrossover(a,b,0)
@@ -139,7 +159,7 @@ suite "Binary subspace testing":
   test "onePointCrossovverTest3":
     let actual = onePointCrossover(a,b,2)
     check(actual[0] == @[1,0,0,0,0])
-    check(actual[1] == @[0,0,1,1,1])
+    check(actual[1] == @[0,1,1,1,1])
 
   test "flipBitTest1":
     let tmp = 1
@@ -153,7 +173,7 @@ suite "Binary subspace testing":
 
   test "hashBinarySubspaceTest":
     check(hash(a) == hash(@[1,0,0,1,1]))
-    check(hash(b) == hash(@[0,0,1,0,0]))
+    check(hash(b) == hash(@[0,1,1,0,0]))
 
   test "randomBinarySubspaceTest":
     var actual = randomBinarySubspace(5, 0.3)
@@ -192,3 +212,17 @@ suite "Binary subspace testing":
 
     var seqPop = pop.asSeq
     check(seqPop.len == pop.len)
+
+  test "toSubspace":
+    let actual = a.asSubspace
+    check(actual.len == 3)
+    check(actual.contains(0))
+    check(actual.contains(3))
+    check(actual.contains(4))
+
+  test "isValid":
+    var h = BinarySubspace(@[0,0,1,0,0])
+    check(a.isValid)
+    check(not h.isValid)
+
+    
