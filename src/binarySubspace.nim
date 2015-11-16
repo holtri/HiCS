@@ -7,6 +7,7 @@ import sets
 import hashes
 import subspace
 import hics
+import utils
 
 type
   BinarySubspace* = seq[int]
@@ -47,7 +48,7 @@ proc asSeq*(pop: BinaryPopulation): seq[BinarySolution] =
   for p in pop:
     result.add(p)
 
-proc isValid(s: BinarySubspace): bool =
+proc isValid*(s: BinarySubspace): bool =
   return foldl(s, a + b) > 1
 
 proc randomBinarySubspace*(totalDim: int, proportion: float): BinarySubspace =
@@ -82,7 +83,7 @@ proc dominates*(a: BinarySolution, b: BinarySolution): bool =
       elif a.deviations[index] > b.deviations[index]:
         result = true
 
-proc onePointCrossover(p1: BinarySubspace, p2:BinarySubspace, crossIndex: int): (BinarySubspace, BinarySubspace) =
+proc onePointCrossover*(p1: BinarySubspace, p2:BinarySubspace, crossIndex: int): (BinarySubspace, BinarySubspace) =
   assert len(p1) == len(p2)
   assert crossIndex >= low(p1) and crossIndex <= high(p1)
   if crossIndex == 0:
@@ -94,7 +95,7 @@ proc onePointCrossover(p1: BinarySubspace, p2:BinarySubspace, crossIndex: int): 
     var c2 = p2[0..crossIndex].concat(p1[(crossIndex + 1)..high(p2)])
     result = (c1,c2)
 
-proc bitStringMutation(p: BinarySubspace, prob: float): BinarySubspace =
+proc bitStringMutation*(p: BinarySubspace, prob: float): BinarySubspace =
   result = p
   result.applyIt(flip(it, prob))
 

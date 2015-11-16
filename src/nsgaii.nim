@@ -1,4 +1,4 @@
-import binarySubspace
+import binarySubspace as bs
 import sets
 import math
 import sequtils
@@ -35,19 +35,19 @@ proc fastNonDominatedSort(population: BinaryPopulation): Table[int, BinaryPopula
   F[i] = initBinaryPopulation(population.len)
 
   for p in population:
-
+    #echo ifmt("checking solution:")
     var Sp: BinaryPopulation = initBinaryPopulation(population.len)
     for q in population:
+
       if pm[p].dominates(pm[q]):
-        Sp.incl(pm[q])
-        #echo ifmt("$p dominates $q")
+        Sp.incl(q)
       elif q.dominates(pm[p]):
         pm[p].dominatedCount += 1
-      pm[p].dominationSet = Sp
-      pm[p].rank = 1
 
+    pm[p].dominationSet = Sp
     if pm[p].dominatedCount == 0:
       F[i].incl(pm[p])
+      pm[p].rank = 1
 
   while F[i].len > 0:
     var Q = initBinaryPopulation(population.len)
@@ -99,25 +99,92 @@ proc crowdingSelection(a:BinarySolution, b:BinarySolution): BinarySolution =
 proc calculateDeviations(population: BinaryPopulation, ds: Dataset, preproData: PreproData, params: Parameters, statTest: KSTest): BinaryPopulation =
   var pop = population
   for p in pop:
-    #let a = calculateDeviations(p, ds, preproData, params, statTest)
     pop[p].deviations = calculateDeviations(p, ds, preproData, params, statTest)
   return pop
 
+proc selectMatingPool(population: BinaryPopulation): seq[BinarySolution] =
+  var pop = population.asSeq
+  var matingPool:seq[BinarySolution] = @[]#initBinaryPopulation(population.len)
+
+  while matingPool.len < population.len:
+    matingPool.add(crowdingSelection(pop[random(population.len)],pop[random(population.len)]))
+  return matingPool
+
+proc performMating(pop: seq[BinarySolution]): BinaryPopulation =
+
+  var offsprings = initBinaryPopulation(pop.len)
+  var i:int = 0
+  let totalDim = pop[0].binarySubspace.len
+  let mutationProb:float = 1.0 / totalDim
+
+  while i < pop.high-1:
+    let cross = onePointCrossover(pop[i].binarySubspace, pop[i+1].binarySubspace, random(totalDim))
+    let os1 = cross[0].bitStringMutation(mutationProb)
+    let os2 = cross[0].bitStringMutation(mutationProb)
+
+    if bs.isValid(os1):
+      offsprings.incl(initBinarySolution(os1))
+    if bs.isValid(os2):
+      offsprings.incl(initBinarySolution(os2))
+    i+=2
+  for os in offsprings:
+    assert bs.isValid(os.binarySubspace)
+  return offsprings
+
+proc sortByCrowdingDistance(pop: BinaryPopulation): seq[BinarySolution] =
+  var popm = pop.asSeq
+  popm = popm.sorted(proc (x,y: BinarySolution): int=
+      result = - cmp(x.crowdingDistance, y.crowdingDistance))
+  return popm
+
+proc mergeFronts(paretoFronts: Table[int, BinaryPopulation], N: int): BinaryPopulation =
+  var pop = initBinaryPopulation(N)
+  var i = 1
+  while paretoFronts[i].len + pop.len < N:
+    pop = pop.union(paretoFronts[i])
+    inc(i)
+
+  let sortedFront = sortByCrowdingDistance(paretoFronts[i])
+  var j = 0
+  while pop.len <= N:
+    pop.incl(sortedFront[j])
+    inc(j)
+  return pop
+
+proc resetPopulation(pop: BinaryPopulation): BinaryPopulation =
+  var pm = pop
+  for p in pop:
+    pm[p].dominationSet = initSet[BinarySolution]()
+    pm[p].dominatedCount = 0
+    pm[p].rank = 0
+    pm[p].crowdingDistance = 0.0
+  return pm
+
 proc runNsga*(N: int, ds: Dataset, preproData: PreproData, params: Parameters, statTest: KSTest): SubspaceSet =
   let totalDim = ds.ncols
-  var pop = initRandomBinaryPopulation(N, totalDim, 0.1)
-  debug pop
-  pop = calculateDeviations(pop,ds, preproData, params, statTest)
-  debug pop
+
+  var parents = initRandomBinaryPopulation(N, totalDim, 0.1)
+  parents = calculateDeviations(parents,ds, preproData, params, statTest)
+
+  let maxIteration = 50
+
+  for i in 1..maxIteration:
+    echo ifmt("iteration $i \n----------------")
+    debug parents
+    let matingPool = selectMatingPool(parents)
+    var offsprings = performMating(matingPool)
+    offsprings = calculateDeviations(offsprings,ds, preproData, params, statTest)
+    let unionGeneration = parents.union(offsprings)
+    let paretoFronts = fastNonDominatedSort(unionGeneration)
+    parents = mergeFronts(paretoFronts,N)
+    parents = resetPopulation(parents)
+    #debug parents
   return result
 
-
-
-discard """ when isMainModule:
-
-  var a: BinarySolution = (BinarySubspace(@[1,0,0,1,1]),@[0.5,0,0,0.5,0.5])
+when isMainModule:
+  let a = random(30)
   echo a
- """
+
 suite "nsgaii testing":
 
   test "crowdingSelection":

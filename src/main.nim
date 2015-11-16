@@ -236,7 +236,7 @@ proc expandSubspace (currentSeq: seq[int], maxSubspaceDim: int, maxFullSpaceDim:
 #case mode:
 #of 0:
 echo "using NSGAII mode"
-let N = 100
+let N = 20
 let preproData = ds.generatePreprocessingData()
 let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
 var res = runNsga(N, ds, preproData, params, statTest)
