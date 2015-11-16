@@ -140,9 +140,13 @@ proc sortByCrowdingDistance(pop: BinaryPopulation): seq[BinarySolution] =
 proc mergeFronts(paretoFronts: Table[int, BinaryPopulation], N: int): BinaryPopulation =
   var pop = initBinaryPopulation(N)
   var i = 1
-  while paretoFronts[i].len + pop.len < N:
+  while paretoFronts[i].len + pop.len <= N:
     pop = pop.union(paretoFronts[i])
-    inc(i)
+    if i == paretoFronts.len:
+      echo "last front included"
+      break
+    else:
+      inc(i)
 
   let sortedFront = sortByCrowdingDistance(paretoFronts[i])
   var j = 0
@@ -166,11 +170,11 @@ proc runNsga*(N: int, ds: Dataset, preproData: PreproData, params: Parameters, s
   var parents = initRandomBinaryPopulation(N, totalDim, 0.1)
   parents = calculateDeviations(parents,ds, preproData, params, statTest)
 
-  let maxIteration = 50
+  let maxIteration = 100
 
   for i in 1..maxIteration:
     echo ifmt("iteration $i \n----------------")
-    debug parents
+    #debug parents
     let matingPool = selectMatingPool(parents)
     var offsprings = performMating(matingPool)
     offsprings = calculateDeviations(offsprings,ds, preproData, params, statTest)
@@ -178,7 +182,9 @@ proc runNsga*(N: int, ds: Dataset, preproData: PreproData, params: Parameters, s
     let paretoFronts = fastNonDominatedSort(unionGeneration)
     parents = mergeFronts(paretoFronts,N)
     parents = resetPopulation(parents)
-    #debug parents
+    if i %% 10 == 0:
+      for p in parents:
+        debug p.toReal
   return result
 
 when isMainModule:
