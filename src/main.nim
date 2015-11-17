@@ -181,7 +181,7 @@ let maxSubSpaceDim  = pairExtractor("--maxSubspaceDim", 0)
 let mode  = pairExtractor("--mode", 0)
 let referenceDim  = pairExtractor("--refDim", 0)
 let maxIteration  = pairExtractor("--maxIteration", 10)
-
+let popSize = pairExtractor("--popSize", 0)
 let randomSeed = pairExtractor("--randomSeed", -1)
 
 if not silent:
@@ -239,11 +239,14 @@ proc expandSubspace (currentSeq: seq[int], maxSubspaceDim: int, maxFullSpaceDim:
 #case mode:
 #of 0:
 echo "using NSGAII mode"
-let N = ds.ncols
+let N = max(ds.ncols, popSize)
+
 let preproData = ds.generatePreprocessingData()
 let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
 #var res = runNsga(N, ds, preproData, params, statTest)
-var res = singleDimensionOptimization(N,referenceDim, maxIteration, ds, preproData, params, statTest)
+for refDim in 0..N-1:
+  var res = singleDimensionOptimization(N,refDim, maxIteration, ds, preproData, params, statTest)
+
 discard """ else:
 
   if onlySubspace.dimensionality == 0:
