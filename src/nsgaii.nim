@@ -13,10 +13,10 @@ import hics
 import stattest
 import subspace
 
-proc generateRandomPopulation(N: int, totalDim: int): BinaryPopulation =
+proc generateRandomPopulation*(N: int, totalDim: int, prop: float): BinaryPopulation =
   result = initBinaryPopulation(N)
   while(len(result) < N):
-    result.incl(initBinarySolution(randomBinarySubspace(totalDim,0.1)))
+    result.incl(initBinarySolution(randomBinarySubspace(totalDim,prop)))
   return result
 
 proc calculateDeviations(b: BinarySolution, ds: Dataset, preproData: PreproData, params: Parameters, statTest: KSTest): seq[float] =
@@ -30,12 +30,11 @@ proc calculateDeviations(b: BinarySolution, ds: Dataset, preproData: PreproData,
 proc fastNonDominatedSort(population: BinaryPopulation): Table[int, BinaryPopulation] =
   var pm = population
   var F = initTable[int, BinaryPopulation]()
-
+  debug pm.len
   var i = 1
   F[i] = initBinaryPopulation(population.len)
-
+  var minDominatedCount = 999
   for p in population:
-    #echo ifmt("checking solution:")
     var Sp: BinaryPopulation = initBinaryPopulation(population.len)
     for q in population:
 
@@ -43,11 +42,15 @@ proc fastNonDominatedSort(population: BinaryPopulation): Table[int, BinaryPopula
         Sp.incl(q)
       elif q.dominates(pm[p]):
         pm[p].dominatedCount += 1
-
     pm[p].dominationSet = Sp
-    if pm[p].dominatedCount == 0:
+    minDominatedCount = min(minDominatedCount, pm[p].dominatedCount)
+    #debug pm[p].dominatedCount
+  #debug minDominatedCount
+  for p in population:
+    if pm[p].dominatedCount == minDominatedCount:
       F[i].incl(pm[p])
       pm[p].rank = 1
+      #debug pm[p].dominationSet.len
 
   while F[i].len > 0:
     var Q = initBinaryPopulation(population.len)
@@ -61,6 +64,11 @@ proc fastNonDominatedSort(population: BinaryPopulation): Table[int, BinaryPopula
     if Q.len > 0:
       F[i] = Q
     else: break
+  var sum:int = 0
+  for i in F.keys:
+    sum += F[i].len
+  debug sum
+  assert sum == population.len
   return F
 
 proc crowdingDistance(population: BinaryPopulation, totalDim: int): BinaryPopulation =
@@ -138,12 +146,12 @@ proc sortByCrowdingDistance(pop: BinaryPopulation): seq[BinarySolution] =
   return popm
 
 proc mergeFronts(paretoFronts: Table[int, BinaryPopulation], N: int): BinaryPopulation =
+
   var pop = initBinaryPopulation(N)
   var i = 1
   while paretoFronts[i].len + pop.len <= N:
     pop = pop.union(paretoFronts[i])
     if i == paretoFronts.len:
-      echo "last front included"
       break
     else:
       inc(i)
@@ -167,18 +175,19 @@ proc resetPopulation(pop: BinaryPopulation): BinaryPopulation =
 proc runNsga*(N: int, ds: Dataset, preproData: PreproData, params: Parameters, statTest: KSTest): SubspaceSet =
   let totalDim = ds.ncols
 
-  var parents = initRandomBinaryPopulation(N, totalDim, 0.1)
+  var parents = initRandomBinaryPopulation(N, totalDim, 1/N)
   parents = calculateDeviations(parents,ds, preproData, params, statTest)
 
   let maxIteration = 100
 
   for i in 1..maxIteration:
     echo ifmt("iteration $i \n----------------")
-    #debug parents
+    debug parents.len
     let matingPool = selectMatingPool(parents)
     var offsprings = performMating(matingPool)
     offsprings = calculateDeviations(offsprings,ds, preproData, params, statTest)
     let unionGeneration = parents.union(offsprings)
+    debug unionGeneration.len
     let paretoFronts = fastNonDominatedSort(unionGeneration)
     parents = mergeFronts(paretoFronts,N)
     parents = resetPopulation(parents)
@@ -186,10 +195,6 @@ proc runNsga*(N: int, ds: Dataset, preproData: PreproData, params: Parameters, s
       for p in parents:
         debug p.toReal
   return result
-
-when isMainModule:
-  let a = random(30)
-  echo a
 
 suite "nsgaii testing":
 

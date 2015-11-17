@@ -35,7 +35,7 @@ proc flip(bit: int): int =
   assert bit.isBinary
   if bit == 0: 1 else: 0
 
-proc flip(bit: int, prob: float): int =
+proc flip*(bit: int, prob: float): int =
   assert prob <= 1.0 and prob >= 0.0
   assert bit.isBinary
   if random(1.0) < prob:
@@ -75,13 +75,14 @@ proc initRandomBinaryPopulation*(populationSize: int, totalDim: int, proportion:
 proc dominates*(a: BinarySolution, b: BinarySolution): bool =
   assert a.binarySubspace.len == b.binarySubspace.len
   result = false
+  var count = 0
   for index in 0..high(a.binarySubspace):
     if a.binarySubspace[index] == 1:
       if a.deviations[index] < b.deviations[index]:
-        result = false
-        break
+        count -= 1
       elif a.deviations[index] > b.deviations[index]:
-        result = true
+        count += 1
+  return count > 0
 
 proc onePointCrossover*(p1: BinarySubspace, p2:BinarySubspace, crossIndex: int): (BinarySubspace, BinarySubspace) =
   assert len(p1) == len(p2)

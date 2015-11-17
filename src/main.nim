@@ -19,6 +19,7 @@ import math
 #import optionals
 import nsgaii
 import binarySubspace
+import singleEA
 
 when false:
   #let ds = loadDataset("/tmp/data.csv")
@@ -178,6 +179,8 @@ let startDimension  = pairExtractor("--startDimension", 0)
 let maxSubSpaceDim  = pairExtractor("--maxSubspaceDim", 0)
 
 let mode  = pairExtractor("--mode", 0)
+let referenceDim  = pairExtractor("--refDim", 0)
+let maxIteration  = pairExtractor("--maxIteration", 10)
 
 let randomSeed = pairExtractor("--randomSeed", -1)
 
@@ -236,11 +239,11 @@ proc expandSubspace (currentSeq: seq[int], maxSubspaceDim: int, maxFullSpaceDim:
 #case mode:
 #of 0:
 echo "using NSGAII mode"
-let N = 20
+let N = ds.ncols
 let preproData = ds.generatePreprocessingData()
 let statTest = initKSTest(ds, preproData, (params.alpha * ds.nrows).toInt, verbose=not silent)
-var res = runNsga(N, ds, preproData, params, statTest)
-
+#var res = runNsga(N, ds, preproData, params, statTest)
+var res = singleDimensionOptimization(N,referenceDim, maxIteration, ds, preproData, params, statTest)
 discard """ else:
 
   if onlySubspace.dimensionality == 0:
